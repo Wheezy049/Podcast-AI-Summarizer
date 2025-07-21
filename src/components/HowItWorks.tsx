@@ -13,21 +13,21 @@ const data = [
       title: "Upload the Podcast",
       description:
         "Upload the Podcast directly from your local computer or enter the URL of the Apple podcast you want to transcribe/summarize.",
-      src: "/step1 (2).svg",
+      src: "/image2.png",
     },
     {
       step: 2,
       title: "Convert Podcast to Text",
       description:
         'Click the "Transcribe" button, and our AI tool will generate the transcript and summary of the the podcast.',
-      src: "/step2 (2).svg",
+      src: "/image4.png",
     },
     {
       step: 3,
       title: "Copy/Download transcript",
       description:
         "Copy the transcription and summary or download as a PDF or DOC file.",
-      src: "/step3 (2).svg",
+      src: "/image.png",
     },
   ];
 

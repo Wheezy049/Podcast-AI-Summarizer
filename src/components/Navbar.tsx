@@ -73,7 +73,7 @@ function Navbar() {
         </Link>
         <Link
           href="/"
-          className="md:py-2 md:px-4 lg:py-3 lg:px-6 rounded-[32px] bg-[#F97316] text-white"
+          className="md:py-2 md:px-4 lg:py-3 lg:px-6 rounded-[32px] bg-[#F97316] text-white hover:bg-[#F97316]/80"
         >
           Get started
         </Link>

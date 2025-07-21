@@ -1,8 +1,20 @@
 "use client";
-import { Music } from "lucide-react";
+import { Copy } from "lucide-react";
 import React, { useRef, useState, useEffect } from "react";
 import { toast } from "react-toastify";
 import ProgressBar from "./ProgressBar";
+import Image from "next/image";
+import Waveform from "./WaveForm";
+
+interface Copy {
+  summaryText: string;
+  transcriptText: string;
+}
+
+interface VolumeBarProps {
+  volume: number;
+  onVolumeChange: (newVolume: number) => void;
+}
 
 function Summarizer() {
   const [file, setFile] = useState<File | null>(null);
@@ -16,9 +28,31 @@ function Summarizer() {
     number | null
   >(null);
   const [showHover, setShowHover] = useState<boolean>(false);
+  const [openResult, setOpenResult] = useState<boolean>(false);
+  const [isSummarizing, setIsSummarizing] = useState<boolean>(false);
+  const [option, setOption] = useState("summary");
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [duration, setDuration] = useState<number>(0);
+  const [currentTime, setCurrentTime] = useState<number>(0);
+  const [playbackRate, setPlaybackRate] = useState(1);
+  const [volume, setVolume] = useState(1);
+  const [isMuted, setIsMuted] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [summaryText, setSummaryText] = useState<string>("");
+  const [transcriptText, setTranscriptText] = useState<string>("");
+  const [isButtonDisabled, setIsButtonDisabled] = useState(false);
+
   const audioRef = useRef<HTMLAudioElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const text =
+    "Lorem ipsum dolor sit, amet consectetur adipisicing elit. Voluptates aspernatur nulla nam dolor quis alias suscipit cupiditate sit, nisi perspiciatis illum unde deleniti molestiae sequi? Delectus ipsam, facilis, ex distinctio totam amet quod iure, culpa fugiat doloribus error exercitationem laboriosam? Quia nihil cum error dolore voluptatum vel natus perspiciatis labore recusandae totam dignissimos eveniet ut voluptas molestiae praesentium corporis, inventore voluptates tempora cumque ad voluptate amet possimus quisquam! Sed aut beatae aliquam, laudantium quod magni quasi ut inventore in vero! Commodi asperiores similique at eum ipsum ratione, vitae eos debitis doloribus doloremque, libero aspernatur enim, unde magni iste quos aliquid!";
+
+  const dummyTranscript = `Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. 
+Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. 
+Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. 
+Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.`;
 
   useEffect(() => {
     if (file) {
@@ -41,7 +75,6 @@ function Summarizer() {
       setErrMsg("Please upload a valid MP3 or MP4 file.");
     }
   };
-
   useEffect(() => {
     if (errMsg) {
       const timer = setTimeout(() => {
@@ -56,6 +89,7 @@ function Summarizer() {
     setErrMsg("");
     setUploadProgress(0);
 
+
     let fileSize: number;
 
     if (typeof audioUrl !== "string") {
@@ -65,7 +99,7 @@ function Summarizer() {
 
       if (fileSize > maxFileSize) {
         setIsUploading(false);
-        toast.success("File size exceeds the 25MB limit.");
+        setErrMsg("File size exceeds the 25MB limit.");
         return;
       }
 
@@ -101,6 +135,7 @@ function Summarizer() {
       await simulateUpload();
     }
     toast.success("Uploading Successful");
+    setIsButtonDisabled(false);
   };
 
   const truncateFileName = (
@@ -126,7 +161,290 @@ function Summarizer() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + "" + sizes[i];
   };
 
-  const handleCancelUpload = () => {};
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const droppedFile = e.dataTransfer.files[0];
+
+    if (droppedFile && acceptedFormats.includes(droppedFile.type)) {
+      setFile(droppedFile);
+      handleUpload(droppedFile);
+    } else {
+      setFile(null);
+      setErrMsg("Please upload a valid MP3 or MP4 file.");
+    }
+  };
+
+  const handleCancelUpload = () => {
+    setFile(null);
+    setOpenResult(false);
+    setIsSummarizing(false);
+    setAudioUrl(null);
+    setIsComplete(false);
+    setIsUploading(false);
+    setInputUrl("");
+    setUploadProgress(0);
+    setErrMsg("");
+    setIsButtonDisabled(false);
+  };
+
+  const handleSummarize = () => {
+    if (!audioUrl) {
+      toast.error("Please select a file first or enter a valid URL!");
+      return;
+    }
+
+    setIsSummarizing(true);
+
+    try {
+      setTimeout(() => {
+        setIsSummarizing(false);
+        setOpenResult(true);
+        setIsUploading(false);
+        setErrMsg("");
+        setIsComplete(true);
+        setSummaryText(text);
+        setTranscriptText(dummyTranscript);
+        toast.success("Summary successful");
+        setIsButtonDisabled(true); 
+      }, 5000);
+      
+    } catch (error) {
+      console.error("Error uploading file or URL:", error);
+      setOpenResult(false);
+      setIsSummarizing(false);
+      toast.error(
+        "There was an error uploading the file or URL. Please try again."
+      );
+    }
+  };
+
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = isMuted ? 0 : volume;
+    }
+  }, [audioRef, volume, isMuted]);
+
+  useEffect(() => {
+    if (file) {
+      const fileType = file.type;
+      const url = URL.createObjectURL(file);
+
+      setAudioUrl(url);
+
+      if (fileType === "audio/mp4" || fileType === "video/mp4") {
+        setAudioUrl(url);
+      } else if (fileType === "audio/mp3") {
+        setAudioUrl(url);
+      }
+    }
+  }, [file]);
+
+  const parseDuration = (duration: string): number => {
+    const regex = /(?:(\d+)hr)?\s*(\d+)?min/;
+    const match = regex.exec(duration);
+
+    if (!match) return 0;
+
+    const hours = match[1] ? parseInt(match[1], 10) : 0;
+    const minutes = match[2] ? parseInt(match[2], 10) : 0;
+
+    return hours * 3600 + minutes * 60;
+  };
+
+  // useEffect(() => {
+  //   if (inputUrl) {
+  //     const seconds = parseDuration(urlDuration);
+  //     setDuration(seconds);
+  //   }
+  // }, [urlDuration, inputUrl]);
+
+  const handleLoadedMetadata = () => {
+    if (audioRef.current) {
+      setDuration(audioRef.current.duration);
+    } else if (videoRef.current) {
+      setDuration(videoRef.current.duration);
+    }
+  };
+
+  const togglePlay = async () => {
+    if (audioRef.current) {
+      try {
+        if (isPlaying) {
+          await audioRef.current.pause();
+        } else {
+          await audioRef.current.play();
+        }
+        setIsPlaying(!isPlaying);
+      } catch (error) {
+        console.error("Error toggling audio playback:", error);
+      }
+    }
+  };
+
+  const formatTime = (time: number) => {
+    const hours = Math.floor(time / 3600);
+    const minutes = Math.floor((time % 3600) / 60);
+    const seconds = Math.floor(time % 60);
+
+    const formattedHours = hours < 10 ? `0${hours}hrs` : `${hours}hrs`;
+    const formattedMinutes = `${minutes}min`;
+    const formattedSeconds = seconds < 10 ? `0${seconds}sec` : `${seconds}sec`;
+
+    return ` ${formattedMinutes} ${formattedSeconds}`;
+  };
+
+  const updateTime = () => {
+    if (audioRef.current) {
+      setCurrentTime(audioRef.current.currentTime);
+    }
+  };
+
+  const increaseSpeed = () => {
+    if (playbackRate < 2) {
+      const newRate = Math.min(playbackRate + 0.25, 2);
+      setPlaybackRate(newRate);
+      if (audioRef.current) {
+        audioRef.current.playbackRate = newRate;
+      }
+    }
+  };
+
+  const decreaseSpeed = () => {
+    if (playbackRate > 0.5) {
+      const newRate = Math.max(playbackRate - 0.25, 0.5);
+      setPlaybackRate(newRate);
+      if (audioRef.current) {
+        audioRef.current.playbackRate = newRate;
+      }
+    }
+  };
+
+  const forwardAudio = () => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = Math.min(
+        audioRef.current.currentTime + 10,
+        audioRef.current.duration
+      );
+    }
+  };
+
+  const rewindAudio = () => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = Math.max(
+        audioRef.current.currentTime - 10,
+        0
+      );
+    }
+  };
+
+  const handleVolumeChange = (newVolume: number) => {
+    setVolume(newVolume);
+    if (audioRef.current) {
+      audioRef.current.volume = newVolume;
+    }
+    if (newVolume > 0) {
+      setIsMuted(false);
+    }
+  };
+
+  const toggleMute = () => {
+    if (audioRef.current) {
+      if (isMuted) {
+        audioRef.current.volume = volume;
+        setIsMuted(false);
+      } else {
+        audioRef.current.volume = 0;
+        setIsMuted(true);
+      }
+    }
+  };
+
+  const copyText = ({ summaryText, transcriptText }: Copy) => {
+    let textToCopy = "";
+    if (option === "summary") {
+      textToCopy = summaryText;
+    } else {
+      textToCopy = transcriptText;
+    }
+
+    navigator.clipboard
+      .writeText(textToCopy)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      })
+      .catch((err) => {
+        console.error("Failed to copy: ", err);
+      });
+  };
+
+  function formatTranscript(transcript: string, duration: number): string[] {
+    const sentences = transcript
+      .split(/(?<=[.?!])\s+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    const interval = 30; // every 30 seconds
+    const totalParagraphs = Math.ceil(duration / interval);
+
+    const paragraphs: string[] = [];
+    const sentencesPerParagraph = Math.ceil(sentences.length / totalParagraphs);
+
+    for (let i = 0; i < totalParagraphs; i++) {
+      const startTime = i * interval;
+      const minutes = String(Math.floor(startTime / 60)).padStart(2, "0");
+      const seconds = String(startTime % 60).padStart(2, "0");
+      const timestamp = `${minutes}:${seconds}`;
+
+      const paragraphSentences = sentences.slice(
+        i * sentencesPerParagraph,
+        (i + 1) * sentencesPerParagraph
+      );
+
+      if (paragraphSentences.length > 0) {
+        const paragraph = `<p class="mb-4"><strong>[${timestamp}]</strong> ${paragraphSentences.join(
+          " "
+        )}</p>`;
+        paragraphs.push(paragraph);
+      }
+    }
+
+    return paragraphs;
+  }
+
+  const breakTextIntoParagraphs = (
+    text: string,
+    maxWordsPerParagraph: number
+  ): string[] => {
+    const sentences = text.split(/(?<=[.!?])\s+/);
+    const paragraphs: string[] = [];
+    let currentParagraph: string[] = [];
+    let currentWordCount = 0;
+
+    sentences.forEach((sentence) => {
+      const sentenceWords = sentence.split(" ");
+      const sentenceWordCount = sentenceWords.length;
+
+      if (currentWordCount + sentenceWordCount > maxWordsPerParagraph) {
+        paragraphs.push(currentParagraph.join(" "));
+        currentParagraph = [];
+        currentWordCount = 0;
+      }
+
+      currentParagraph.push(sentence);
+      currentWordCount += sentenceWordCount;
+    });
+
+    if (currentParagraph.length > 0) {
+      paragraphs.push(currentParagraph.join(" "));
+    }
+
+    return paragraphs;
+  };
 
   return (
     <div className="w-full flex flex-col justify-center items-center mx-auto">
@@ -208,12 +526,30 @@ function Summarizer() {
                   )}
                 </div>
                 <button
-                  className={`
-                             w-full py-2 rounded-[8px] bg-[#F97316] text-white 
-                            hover:bg-[#F97316] focus:outline-none flex items-center justify-center gap-2 
-                          `}
+                  onClick={handleSummarize}
+                  disabled={isSummarizing && isButtonDisabled}
+                  className={`w-full py-2 rounded-[8px] bg-[#F97316] text-white hover:bg-[#F97316]/80 focus:outline-none flex items-center justify-center gap-2  ${
+                    isSummarizing || isButtonDisabled
+                      ? "opacity-50 cursor-not-allowed"
+                      : "cursor-pointer"
+                  }`}
                 >
-                  Summarize
+                  {isSummarizing ? (
+                    <div className="flex justify-center items-center gap-2">
+                      <Image
+                        src="/starry.svg"
+                        alt="Music icon"
+                        className="animate-spin ml-2 w-4 h-4 md:w-6 md:h-6"
+                        width={6}
+                        height={6}
+                      />
+                      <span>Summarizing</span>
+                    </div>
+                  ) : (
+                    <>
+                      <span>Summarize</span>
+                    </>
+                  )}
                 </button>
               </>
             )}
@@ -246,7 +582,13 @@ function Summarizer() {
                               {truncateFileName(file?.name)}
                             </p>
                             <div className="flex items-center justify-center gap-2 mt-2 md:mt-0">
-                              <Music className="animate-spin ml-2 w-4 h-4 md:w-6 md:h-6" />
+                              <Image
+                                src="/starry.svg"
+                                alt="Music icon"
+                                className="animate-spin ml-2 w-4 h-4 md:w-6 md:h-6"
+                                width={6}
+                                height={6}
+                              />
                               <span className="text-sm md:text-xl text-[#555]">
                                 Uploading file, this will take a few minutes
                               </span>
@@ -264,7 +606,7 @@ function Summarizer() {
                   )}
                 </>
               ) : (
-                <div>
+                <div onDragOver={handleDragOver} onDrop={handleDrop}>
                   <input
                     type="file"
                     accept="audio/*,video/*"
@@ -335,45 +677,271 @@ function Summarizer() {
         )}
       </div>
       {/* input url & button */}
-      <div className="flex items-center justify-between gap-4 w-full max-w-6xl mx-auto px-4 py-2 border border-[#CBD5E1] rounded-[8px]">
-        {/* input url */}
-        <div className="flex items-center gap-2 w-full">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-          >
-            <path
-              d="M10 13C10.4295 13.5741 10.9774 14.0491 11.6066 14.3929C12.2357 14.7367 12.9315 14.9411 13.6467 14.9923C14.3618 15.0435 15.0796 14.9403 15.7513 14.6897C16.4231 14.4392 17.0331 14.047 17.54 13.54L20.54 10.54C21.4508 9.59695 21.9548 8.33394 21.9434 7.02296C21.932 5.71198 21.4061 4.45791 20.4791 3.53087C19.5521 2.60383 18.298 2.07799 16.987 2.0666C15.676 2.0552 14.413 2.55918 13.47 3.46997L11.75 5.17997"
-              stroke="#667085"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+      {!isUploading && !isComplete && (
+        <div className="flex items-center justify-between gap-4 w-full max-w-6xl mx-auto px-4 py-2 border border-[#CBD5E1] rounded-[8px]">
+          {/* input url */}
+          <div className="flex items-center gap-2 w-full">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+            >
+              <path
+                d="M10 13C10.4295 13.5741 10.9774 14.0491 11.6066 14.3929C12.2357 14.7367 12.9315 14.9411 13.6467 14.9923C14.3618 15.0435 15.0796 14.9403 15.7513 14.6897C16.4231 14.4392 17.0331 14.047 17.54 13.54L20.54 10.54C21.4508 9.59695 21.9548 8.33394 21.9434 7.02296C21.932 5.71198 21.4061 4.45791 20.4791 3.53087C19.5521 2.60383 18.298 2.07799 16.987 2.0666C15.676 2.0552 14.413 2.55918 13.47 3.46997L11.75 5.17997"
+                stroke="#667085"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M14.0002 11.0002C13.5707 10.4261 13.0228 9.95104 12.3936 9.60729C11.7645 9.26353 11.0687 9.05911 10.3535 9.00789C9.63841 8.95667 8.92061 9.05986 8.24885 9.31044C7.5771 9.56103 6.96709 9.95316 6.4602 10.4602L3.4602 13.4602C2.54941 14.4032 2.04544 15.6662 2.05683 16.9772C2.06822 18.2882 2.59407 19.5423 3.52111 20.4693C4.44815 21.3964 5.70221 21.9222 7.01319 21.9336C8.32418 21.945 9.58719 21.441 10.5302 20.5302L12.2402 18.8202"
+                stroke="#667085"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <input
+              type="text"
+              placeholder="Apple podcast link (MAX: 10 minutes)"
+              className="w-full focus:outline-none text-sm text-[#1A1A1A] placeholder:text-[#94A3B8]"
             />
-            <path
-              d="M14.0002 11.0002C13.5707 10.4261 13.0228 9.95104 12.3936 9.60729C11.7645 9.26353 11.0687 9.05911 10.3535 9.00789C9.63841 8.95667 8.92061 9.05986 8.24885 9.31044C7.5771 9.56103 6.96709 9.95316 6.4602 10.4602L3.4602 13.4602C2.54941 14.4032 2.04544 15.6662 2.05683 16.9772C2.06822 18.2882 2.59407 19.5423 3.52111 20.4693C4.44815 21.3964 5.70221 21.9222 7.01319 21.9336C8.32418 21.945 9.58719 21.441 10.5302 20.5302L12.2402 18.8202"
-              stroke="#667085"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          <input
-            type="text"
-            placeholder="Apple podcast link (MAX: 10 minutes)"
-            className="w-full focus:outline-none text-sm text-[#1A1A1A] placeholder:text-[#94A3B8]"
-          />
-        </div>
+          </div>
 
-        {/* Upload button */}
-        <button className="shrink-0 py-2 px-5 rounded-[4px] bg-[#F97316] text-white hover:bg-[#ea6d0e] focus:outline-none">
-          Submit
-        </button>
-      </div>
+          {/* Upload button */}
+          <button className="shrink-0 py-2 px-5 rounded-[4px] bg-[#F97316] text-white hover:bg-[#ea6d0e] focus:outline-none">
+            Submit
+          </button>
+        </div>
+      )}
+
+      {openResult && (
+        <div className="mt-10 justify-center flex flex-col items-center mx-auto max-w-6xl">
+          <h1 className="text-center mb-5 font-semibold text-2xl capitalize">
+            Your Summarization
+          </h1>
+          {audioUrl && (
+            <div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-[40px]">
+                <div className="w-full mx-auto border border-[#CBD5E1] px-4 py-10 rounded-[16px]">
+                  <>
+                    {file && (
+                      <>
+                        {file?.type === "video/mp4" ? (
+                          <video
+                            ref={videoRef}
+                            src={audioUrl || ""}
+                            onLoadedMetadata={handleLoadedMetadata}
+                            onTimeUpdate={updateTime}
+                            controls
+                            className="w-full mb-10"
+                          >
+                            Your browser does not support the video tag.
+                          </video>
+                        ) : (
+                          <>
+                            <audio
+                              ref={audioRef}
+                              src={audioUrl || ""}
+                              onLoadedMetadata={handleLoadedMetadata}
+                              onTimeUpdate={updateTime}
+                              controls
+                              className="w-full mb-8"
+                            >
+                              Your browser does not support the audio tag.
+                            </audio>
+                            {/* <div className="bg-white flex rounded-[12px] border-2 p-3 w-full items-center justify-between mb-8">
+                              <div className="flex gap-2 items-center">
+                                <button
+                                  onClick={togglePlay}
+                                  className="bg-[#F97316] hover:bg-[#F97316]/70 p-2 rounded-full flex items-center justify-center"
+                                >
+                                  <Image
+                                    src={
+                                      isPlaying
+                                        ? "/pauseIcon.svg"
+                                        : "playIcon.svg"
+                                    }
+                                    alt="Play/Pause icon"
+                                    className="cursor-pointer w-8"
+                                    width={4}
+                                    height={4}
+                                  />
+                                </button>
+                                <Waveform
+                                  audioUrl={audioUrl || ""}
+                                  onTimeUpdate={(time) => {
+                                    if (audioRef.current) {
+                                      audioRef.current.currentTime = time;
+                                    }
+                                  }}
+                                  duration={duration}
+                                  currentTime={currentTime}
+                                  width={20}
+                                  height={2}
+                                />
+                              </div>
+                              <div className="flex gap-2 items-center">
+                                <Image
+                                  src={isMuted ? "/mute.svg" : "speaker.svg"}
+                                  alt="cancel icon"
+                                  className="w-8"
+                                  onClick={toggleMute}
+                                  width={4}
+                                  height={4}
+                                />
+                                <VolumeBar
+                                  volume={volume}
+                                  onVolumeChange={handleVolumeChange}
+                                />
+                              </div>
+                            </div> */}
+                          </>
+                        )}
+                      </>
+                    )}
+                  </>
+
+                  <p className=" text-xl md:text-2xl flex text-left font-semibold ml-2 capitalize ">
+                    {truncateFileName(file?.name)}
+                  </p>
+
+                  <div className="mt-12 flex flex-col gap-6">
+                    {inputUrl && (
+                      <div className="flex justify-between text-sm md:text-xl font-medium ml-2 mb">
+                        <p className="text-[#98A2B3]">Host:</p>
+                        <p className="text-[#1A1A1A]">John Doe</p>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-sm md:text-xl font-medium ml-2">
+                      <p className="text-[#98A2B3]">Duration:</p>
+                      <p className="text-[#1A1A1A]">
+                        {file ? (
+                          <span className=" ">{formatTime(duration)}</span>
+                        ) : (
+                          <>1min 30sec</>
+                        )}
+                      </p>
+                    </div>
+                    <div className="flex justify-between text-sm md:text-xl font-medium ml-2">
+                      <p className="text-[#98A2B3]">Read Time:</p>
+                      <p className="text-[#1A1A1A]">1min 30sec</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className=" w-full rounded-lg space-y-2 lg:space-y-5">
+                  <div className="space-y-2 lg:space-y-5 text-xs md:text-sm">
+                    <div className="border py-7 px-5 border-[#CBD5E1] rounded-[8px]">
+                      <div className="flex items-center gap-2 bg-white border p-1 rounded-[8px] justify-between w-fit mb-7">
+                        <button
+                          onClick={() => setOption("summary")}
+                          className={`px-3 py-1.5 rounded-[4px]
+                          ${
+                            option === "summary"
+                              ? "bg-[#F97316] hover:bg-[#F97316]/70 text-white"
+                              : "bg-transparent"
+                          }
+                          `}
+                        >
+                          Summary
+                        </button>
+                        <button
+                          onClick={() => setOption("transcript")}
+                          className={`px-3 py-1.5 rounded-[4px]
+                          ${
+                            option === "transcript"
+                              ? "bg-[#F97316] hover:bg-[#F97316]/70 text-white"
+                              : "bg-transparent"
+                          }
+                          `}
+                        >
+                          Transcript
+                        </button>
+                      </div>
+                      {option === "summary" ? (
+                        <>
+                          <div className="h-[420px] overflow-y-auto">
+                            <p className="mb-5 text-left text-sm text-[#555]">
+                              {breakTextIntoParagraphs(summaryText, 100)}
+                            </p>
+                          </div>
+                        </>
+                      ) : (
+                        <div>
+                          <div className="h-[420px] overflow-y-auto ">
+                            <div
+                              className="prose max-w-none"
+                              dangerouslySetInnerHTML={{
+                                __html: formatTranscript(
+                                  transcriptText,
+                                  duration
+                                ).join(""),
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                      <div className="w-full flex items-center justify-end">
+                        {copied ? (
+                          <span className="text-green-600">
+                            Copied to clipboard
+                          </span>
+                        ) : (
+                          <Copy
+                            size={22}
+                            className="cursor-pointer"
+                            onClick={() =>
+                              copyText({ summaryText, transcriptText })
+                            }
+                          />
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex justify-between">
+                      <button
+                        className={`w-full max-w-4xl mx-auto p-4 mr-5 rounded-[8px] cursor-pointer bg-[#F4F4F5] hover:bg-[#F4F4F5]/70 text-[#1A1A1A] text-xs md:text-[18px] focus:outline-none flex items-center justify-center gap-2`}
+                      >
+                        save
+                      </button>
+                      <button
+                        className={`w-full max-w-4xl mx-auto p-4 rounded-[8px] cursor-pointer bg-[#F97316] hover:bg-[#F97316]/80 text-white text-xs md:text-[18px] focus:outline-none flex items-center justify-center gap-2`}
+                      >
+                        Download
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
 export default Summarizer;
+
+const VolumeBar: React.FC<VolumeBarProps> = ({ volume, onVolumeChange }) => {
+  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const newVolume = Math.max(0, Math.min(1, x / rect.width));
+    onVolumeChange(newVolume);
+  };
+
+  return (
+    <div
+      className="w-24 h-2 bg-gray-300 rounded-full cursor-pointer hidden md:inline-block"
+      onClick={handleClick}
+    >
+      <div
+        className="h-full bg-[#555555] rounded-full"
+        style={{ width: `${volume * 100}%` }}
+      />
+    </div>
+  );
+};
