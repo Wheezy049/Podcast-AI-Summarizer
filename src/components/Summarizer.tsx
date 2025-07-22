@@ -1,10 +1,11 @@
 "use client";
-import { Copy } from "lucide-react";
+import { Copy, X } from "lucide-react";
 import React, { useRef, useState, useEffect } from "react";
 import { toast } from "react-toastify";
 import ProgressBar from "./ProgressBar";
 import Image from "next/image";
 import Waveform from "./WaveForm";
+import { error } from "console";
 
 interface Copy {
   summaryText: string;
@@ -41,6 +42,8 @@ function Summarizer() {
   const [summaryText, setSummaryText] = useState<string>("");
   const [transcriptText, setTranscriptText] = useState<string>("");
   const [isButtonDisabled, setIsButtonDisabled] = useState(false);
+  const [isLinkValid, setIsLinkValid] = useState<boolean>(false);
+  const [linkUrlError, setLinkUrlError] = useState<string>("");
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -76,19 +79,19 @@ Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deseru
     }
   };
   useEffect(() => {
-    if (errMsg) {
+    if (errMsg || linkUrlError) {
       const timer = setTimeout(() => {
         setErrMsg("");
+        setLinkUrlError("");
       }, 3000);
       return () => clearTimeout(timer);
     }
-  }, [errMsg]);
+  }, [errMsg, linkUrlError]);
 
   const handleUpload = async (audioUrl: File | string) => {
     setIsUploading(true);
     setErrMsg("");
     setUploadProgress(0);
-
 
     let fileSize: number;
 
@@ -142,7 +145,7 @@ Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deseru
     name: string | undefined,
     maxLength: number = 40
   ): string => {
-    if (!name) return "Audio URL";
+    if (!name) return "";
 
     if (name.length <= maxLength) return name;
 
@@ -209,9 +212,8 @@ Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deseru
         setSummaryText(text);
         setTranscriptText(dummyTranscript);
         toast.success("Summary successful");
-        setIsButtonDisabled(true); 
+        setIsButtonDisabled(true);
       }, 5000);
-      
     } catch (error) {
       console.error("Error uploading file or URL:", error);
       setOpenResult(false);
@@ -382,14 +384,19 @@ Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deseru
       });
   };
 
-  function formatTranscript(transcript: string, duration: number): string[] {
+  function formatTranscript(transcript: string, duration?: number): string[] {
+    // Default to 3 minutes if duration is empty
+    const fallbackDuration = 180;
+    const actualDuration =
+      duration && duration > 0 ? duration : fallbackDuration;
+
     const sentences = transcript
       .split(/(?<=[.?!])\s+/)
       .map((s) => s.trim())
       .filter(Boolean);
 
     const interval = 30; // every 30 seconds
-    const totalParagraphs = Math.ceil(duration / interval);
+    const totalParagraphs = Math.ceil(actualDuration / interval);
 
     const paragraphs: string[] = [];
     const sentencesPerParagraph = Math.ceil(sentences.length / totalParagraphs);
@@ -446,6 +453,71 @@ Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deseru
     return paragraphs;
   };
 
+  const validatePodcastUrl = (url: string): boolean => {
+    try {
+      const parsedUrl = new URL(url);
+      const allowedHosts = ["podcasts.apple.com", "open.spotify.com"];
+      const audioExtensions = [".mp3", ".m4a"];
+
+      const isFromAllowedHost = allowedHosts.some((host) =>
+        parsedUrl.hostname.includes(host)
+      );
+
+      const hasAudioExtension = audioExtensions.some((ext) =>
+        parsedUrl.pathname.toLowerCase().endsWith(ext)
+      );
+
+      return isFromAllowedHost || hasAudioExtension;
+    } catch {
+      return false;
+    }
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.preventDefault();
+
+    const value = e.target.value;
+
+    setInputUrl(value);
+
+    if (linkUrlError) {
+      setLinkUrlError("");
+    }
+  };
+
+  const handleSummarizeLink = () => {
+    if (inputUrl && !validatePodcastUrl(inputUrl)) {
+      setLinkUrlError(
+        "Please enter a valid podcast audio URL ending in .mp3 or .m4a"
+      );
+      return;
+    }
+
+    setIsSummarizing(true);
+
+    try {
+      setTimeout(() => {
+        setIsSummarizing(false);
+        setOpenResult(true);
+        setIsUploading(false);
+        setErrMsg("");
+        setLinkUrlError("");
+        setIsComplete(false);
+        setSummaryText(text);
+        setTranscriptText(dummyTranscript);
+        toast.success("Summary successful");
+        setIsButtonDisabled(true);
+      }, 5000);
+    } catch (error) {
+      console.error("Error uploading file or URL:", error);
+      setOpenResult(false);
+      setIsSummarizing(false);
+      toast.error(
+        "There was an error uploading the file or URL. Please try again."
+      );
+    }
+  };
+
   return (
     <div className="w-full flex flex-col justify-center items-center mx-auto">
       <div className="w-full mx-auto items-center flex flex-col justify-center lg:max-w-6xl mb-6">
@@ -453,7 +525,7 @@ Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deseru
           <>
             {file && (
               <>
-                <div className="space-y-2 relative bg-white border-dashed w-full md:h-[250px] h-[280px] lg:max-w-6xl my-5 mx-auto border-[1px] border-[#7E97B4] rounded-lg flex flex-row items-center justify-between p-5 md:p-10 hover:bg-[#F97316]/5 hover:border-[#F97316] transition ease-in-out delay-150">
+                <div className="space-y-2 relative bg-white border-dashed w-[90%] sm:w-[80%] md:w-[80%] lg:w-[85%] xl:w-[90%] max-w-6xl h-[260px] sm:h-[280px] md:h-[300px]  my-5 mx-auto border-[1px] border-[#7E97B4] rounded-lg flex flex-row items-center justify-between p-5 md:p-10 hover:bg-[#F97316]/5 hover:border-[#F97316] transition ease-in-out delay-150">
                   <div className="flex gap-4 md:gap-8 sm:justify-center md:justify-normal items-center">
                     <span>
                       <svg
@@ -528,7 +600,7 @@ Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deseru
                 <button
                   onClick={handleSummarize}
                   disabled={isSummarizing && isButtonDisabled}
-                  className={`w-full py-2 rounded-[8px] bg-[#F97316] text-white hover:bg-[#F97316]/80 focus:outline-none flex items-center justify-center gap-2  ${
+                  className={`w-[90%] sm:w-[80%] md:w-[80%] lg:w-[85%] xl:w-[90%] py-2 rounded-[8px] bg-[#F97316] text-white hover:bg-[#F97316]/80 focus:outline-none flex items-center justify-center gap-2  ${
                     isSummarizing || isButtonDisabled
                       ? "opacity-50 cursor-not-allowed"
                       : "cursor-pointer"
@@ -556,7 +628,7 @@ Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deseru
           </>
         ) : (
           <>
-            <div className="relative bg-white border-dashed w-full md:h-[280px] h-[300px] max-w-6xl mb-4 mx-auto border-[1px] border-[#7E97B4] rounded-lg flex flex-col items-center justify-center hover:bg-[#F97316]/5 hover:border-[#F97316] transition ease-in-out delay-150">
+            <div className="relative bg-white border-dashed w-[90%] sm:w-[80%] md:w-[80%] lg:w-[85%] xl:w-[90%] max-w-6xl h-[260px] sm:h-[280px] md:h-[300px] mb-4 mx-auto border-[1px] border-[#7E97B4] rounded-lg flex flex-col items-center justify-center hover:bg-[#F97316]/5 hover:border-[#F97316] transition ease-in-out delay-150">
               {isUploading ? (
                 <>
                   {file && (
@@ -678,251 +750,222 @@ Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deseru
       </div>
       {/* input url & button */}
       {!isUploading && !isComplete && (
-        <div className="flex items-center justify-between gap-4 w-full max-w-6xl mx-auto px-4 py-2 border border-[#CBD5E1] rounded-[8px]">
-          {/* input url */}
-          <div className="flex items-center gap-2 w-full">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
+        <>
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 w-[90%] sm:w-[80%] md:w-[80%] lg:w-[85%] xl:w-[72%] max-w-5xl mx-auto px-4 py-2 border border-[#CBD5E1] rounded-[8px]">
+            {/* Input URL */}
+            <div className="flex items-center gap-2 w-full sm:w-[70%]">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+              >
+                <path
+                  d="M10 13C10.4295 13.5741 10.9774 14.0491 11.6066 14.3929C12.2357 14.7367 12.9315 14.9411 13.6467 14.9923C14.3618 15.0435 15.0796 14.9403 15.7513 14.6897C16.4231 14.4392 17.0331 14.047 17.54 13.54L20.54 10.54C21.4508 9.59695 21.9548 8.33394 21.9434 7.02296C21.932 5.71198 21.4061 4.45791 20.4791 3.53087C19.5521 2.60383 18.298 2.07799 16.987 2.0666C15.676 2.0552 14.413 2.55918 13.47 3.46997L11.75 5.17997"
+                  stroke="#667085"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M14.0002 11.0002C13.5707 10.4261 13.0228 9.95104 12.3936 9.60729C11.7645 9.26353 11.0687 9.05911 10.3535 9.00789C9.63841 8.95667 8.92061 9.05986 8.24885 9.31044C7.5771 9.56103 6.96709 9.95316 6.4602 10.4602L3.4602 13.4602C2.54941 14.4032 2.04544 15.6662 2.05683 16.9772C2.06822 18.2882 2.59407 19.5423 3.52111 20.4693C4.44815 21.3964 5.70221 21.9222 7.01319 21.9336C8.32418 21.945 9.58719 21.441 10.5302 20.5302L12.2402 18.8202"
+                  stroke="#667085"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <input
+                type="text"
+                value={inputUrl}
+                onChange={handleChange}
+                placeholder="Podcast link (MAX: 10 minutes)"
+                className="w-full focus:outline-none text-sm sm:text-base text-[#1A1A1A] placeholder:text-[#94A3B8] py-2"
+              />
+            </div>
+
+            {/* Upload Button */}
+            <button
+              onClick={handleSummarizeLink}
+              disabled={(isSummarizing && isButtonDisabled) || !inputUrl}
+              className={`w-full sm:w-auto py-2 px-4 rounded-[8px] bg-[#F97316] text-white hover:bg-[#F97316]/80 focus:outline-none flex items-center justify-center gap-2 ${
+                isSummarizing || isButtonDisabled || !inputUrl
+                  ? "opacity-50 cursor-not-allowed"
+                  : "cursor-pointer"
+              }`}
             >
-              <path
-                d="M10 13C10.4295 13.5741 10.9774 14.0491 11.6066 14.3929C12.2357 14.7367 12.9315 14.9411 13.6467 14.9923C14.3618 15.0435 15.0796 14.9403 15.7513 14.6897C16.4231 14.4392 17.0331 14.047 17.54 13.54L20.54 10.54C21.4508 9.59695 21.9548 8.33394 21.9434 7.02296C21.932 5.71198 21.4061 4.45791 20.4791 3.53087C19.5521 2.60383 18.298 2.07799 16.987 2.0666C15.676 2.0552 14.413 2.55918 13.47 3.46997L11.75 5.17997"
-                stroke="#667085"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M14.0002 11.0002C13.5707 10.4261 13.0228 9.95104 12.3936 9.60729C11.7645 9.26353 11.0687 9.05911 10.3535 9.00789C9.63841 8.95667 8.92061 9.05986 8.24885 9.31044C7.5771 9.56103 6.96709 9.95316 6.4602 10.4602L3.4602 13.4602C2.54941 14.4032 2.04544 15.6662 2.05683 16.9772C2.06822 18.2882 2.59407 19.5423 3.52111 20.4693C4.44815 21.3964 5.70221 21.9222 7.01319 21.9336C8.32418 21.945 9.58719 21.441 10.5302 20.5302L12.2402 18.8202"
-                stroke="#667085"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            <input
-              type="text"
-              placeholder="Apple podcast link (MAX: 10 minutes)"
-              className="w-full focus:outline-none text-sm text-[#1A1A1A] placeholder:text-[#94A3B8]"
-            />
+              {isSummarizing ? (
+                <div className="flex justify-center items-center gap-1">
+                  <Image
+                    src="/starry.svg"
+                    alt="Music icon"
+                    className="animate-spin ml-2 w-4 h-4 md:w-6 md:h-6"
+                    width={4}
+                    height={4}
+                  />
+                  <span>Summarizing</span>
+                </div>
+              ) : (
+                <span>Summarize</span>
+              )}
+            </button>
           </div>
 
-          {/* Upload button */}
-          <button className="shrink-0 py-2 px-5 rounded-[4px] bg-[#F97316] text-white hover:bg-[#ea6d0e] focus:outline-none">
-            Submit
-          </button>
-        </div>
+          {linkUrlError && <p className="text-red-500 mt-2">{linkUrlError}</p>}
+        </>
       )}
 
-      {openResult && (
-        <div className="mt-10 justify-center flex flex-col items-center mx-auto max-w-6xl">
+      {openResult && (audioUrl || inputUrl) && (
+        <div className="mt-10 w-[90%] md:w-[85%] lg:w-[80%] xl:w-[75%] max-w-6xl mx-auto flex flex-col justify-center">
           <h1 className="text-center mb-5 font-semibold text-2xl capitalize">
             Your Summarization
           </h1>
-          {audioUrl && (
-            <div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-[40px]">
-                <div className="w-full mx-auto border border-[#CBD5E1] px-4 py-10 rounded-[16px]">
+
+          {inputUrl && (
+            <p
+              onClick={handleCancelUpload}
+              className="mb-1 font-semibold text-base flex gap-1 items-center cursor-pointer"
+            >
+              Cancel <X />
+            </p>
+          )}
+
+          <div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-[40px]">
+              <div className="w-full mx-auto border border-[#CBD5E1] px-4 py-10 rounded-[16px]">
+                {file && audioUrl && (
                   <>
-                    {file && (
-                      <>
-                        {file?.type === "video/mp4" ? (
-                          <video
-                            ref={videoRef}
-                            src={audioUrl || ""}
-                            onLoadedMetadata={handleLoadedMetadata}
-                            onTimeUpdate={updateTime}
-                            controls
-                            className="w-full mb-10"
-                          >
-                            Your browser does not support the video tag.
-                          </video>
-                        ) : (
-                          <>
-                            <audio
-                              ref={audioRef}
-                              src={audioUrl || ""}
-                              onLoadedMetadata={handleLoadedMetadata}
-                              onTimeUpdate={updateTime}
-                              controls
-                              className="w-full mb-8"
-                            >
-                              Your browser does not support the audio tag.
-                            </audio>
-                            {/* <div className="bg-white flex rounded-[12px] border-2 p-3 w-full items-center justify-between mb-8">
-                              <div className="flex gap-2 items-center">
-                                <button
-                                  onClick={togglePlay}
-                                  className="bg-[#F97316] hover:bg-[#F97316]/70 p-2 rounded-full flex items-center justify-center"
-                                >
-                                  <Image
-                                    src={
-                                      isPlaying
-                                        ? "/pauseIcon.svg"
-                                        : "playIcon.svg"
-                                    }
-                                    alt="Play/Pause icon"
-                                    className="cursor-pointer w-8"
-                                    width={4}
-                                    height={4}
-                                  />
-                                </button>
-                                <Waveform
-                                  audioUrl={audioUrl || ""}
-                                  onTimeUpdate={(time) => {
-                                    if (audioRef.current) {
-                                      audioRef.current.currentTime = time;
-                                    }
-                                  }}
-                                  duration={duration}
-                                  currentTime={currentTime}
-                                  width={20}
-                                  height={2}
-                                />
-                              </div>
-                              <div className="flex gap-2 items-center">
-                                <Image
-                                  src={isMuted ? "/mute.svg" : "speaker.svg"}
-                                  alt="cancel icon"
-                                  className="w-8"
-                                  onClick={toggleMute}
-                                  width={4}
-                                  height={4}
-                                />
-                                <VolumeBar
-                                  volume={volume}
-                                  onVolumeChange={handleVolumeChange}
-                                />
-                              </div>
-                            </div> */}
-                          </>
-                        )}
-                      </>
+                    {file.type === "video/mp4" ? (
+                      <video
+                        ref={videoRef}
+                        src={audioUrl}
+                        onLoadedMetadata={handleLoadedMetadata}
+                        onTimeUpdate={updateTime}
+                        controls
+                        className="w-full mb-10"
+                      >
+                        Your browser does not support the video tag.
+                      </video>
+                    ) : (
+                      <audio
+                        ref={audioRef}
+                        src={audioUrl}
+                        onLoadedMetadata={handleLoadedMetadata}
+                        onTimeUpdate={updateTime}
+                        controls
+                        className="w-full mb-8"
+                      >
+                        Your browser does not support the audio tag.
+                      </audio>
                     )}
                   </>
+                )}
 
-                  <p className=" text-xl md:text-2xl flex text-left font-semibold ml-2 capitalize ">
-                    {truncateFileName(file?.name)}
-                  </p>
+                <p className="text-sm md:text-2xl text-left font-semibold ml-2 capitalize break-words truncate max-w-full">
+                  {file
+                    ? truncateFileName(file.name)
+                    : truncateFileName(inputUrl)}
+                </p>
 
-                  <div className="mt-12 flex flex-col gap-6">
-                    {inputUrl && (
-                      <div className="flex justify-between text-sm md:text-xl font-medium ml-2 mb">
-                        <p className="text-[#98A2B3]">Host:</p>
-                        <p className="text-[#1A1A1A]">John Doe</p>
-                      </div>
-                    )}
-                    <div className="flex justify-between text-sm md:text-xl font-medium ml-2">
-                      <p className="text-[#98A2B3]">Duration:</p>
-                      <p className="text-[#1A1A1A]">
-                        {file ? (
-                          <span className=" ">{formatTime(duration)}</span>
-                        ) : (
-                          <>1min 30sec</>
-                        )}
-                      </p>
+                <div className="mt-12 flex flex-col gap-6">
+                  {inputUrl && (
+                    <div className="flex justify-between text-sm md:text-xl font-medium ml-2 mb-2">
+                      <p className="text-[#98A2B3]">Host:</p>
+                      <p className="text-[#1A1A1A]">John Doe</p>
                     </div>
-                    <div className="flex justify-between text-sm md:text-xl font-medium ml-2">
-                      <p className="text-[#98A2B3]">Read Time:</p>
-                      <p className="text-[#1A1A1A]">1min 30sec</p>
-                    </div>
+                  )}
+                  <div className="flex justify-between text-sm md:text-xl font-medium ml-2">
+                    <p className="text-[#98A2B3]">Duration:</p>
+                    <p className="text-[#1A1A1A]">
+                      {file ? formatTime(duration) : "1min 30sec"}
+                    </p>
                   </div>
-                </div>
-
-                <div className=" w-full rounded-lg space-y-2 lg:space-y-5">
-                  <div className="space-y-2 lg:space-y-5 text-xs md:text-sm">
-                    <div className="border py-7 px-5 border-[#CBD5E1] rounded-[8px]">
-                      <div className="flex items-center gap-2 bg-white border p-1 rounded-[8px] justify-between w-fit mb-7">
-                        <button
-                          onClick={() => setOption("summary")}
-                          className={`px-3 py-1.5 rounded-[4px]
-                          ${
-                            option === "summary"
-                              ? "bg-[#F97316] hover:bg-[#F97316]/70 text-white"
-                              : "bg-transparent"
-                          }
-                          `}
-                        >
-                          Summary
-                        </button>
-                        <button
-                          onClick={() => setOption("transcript")}
-                          className={`px-3 py-1.5 rounded-[4px]
-                          ${
-                            option === "transcript"
-                              ? "bg-[#F97316] hover:bg-[#F97316]/70 text-white"
-                              : "bg-transparent"
-                          }
-                          `}
-                        >
-                          Transcript
-                        </button>
-                      </div>
-                      {option === "summary" ? (
-                        <>
-                          <div className="h-[420px] overflow-y-auto">
-                            <p className="mb-5 text-left text-sm text-[#555]">
-                              {breakTextIntoParagraphs(summaryText, 100)}
-                            </p>
-                          </div>
-                        </>
-                      ) : (
-                        <div>
-                          <div className="h-[420px] overflow-y-auto ">
-                            <div
-                              className="prose max-w-none"
-                              dangerouslySetInnerHTML={{
-                                __html: formatTranscript(
-                                  transcriptText,
-                                  duration
-                                ).join(""),
-                              }}
-                            />
-                          </div>
-                        </div>
-                      )}
-                      <div className="w-full flex items-center justify-end">
-                        {copied ? (
-                          <span className="text-green-600">
-                            Copied to clipboard
-                          </span>
-                        ) : (
-                          <Copy
-                            size={22}
-                            className="cursor-pointer"
-                            onClick={() =>
-                              copyText({ summaryText, transcriptText })
-                            }
-                          />
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex justify-between">
-                      <button
-                        className={`w-full max-w-4xl mx-auto p-4 mr-5 rounded-[8px] cursor-pointer bg-[#F4F4F5] hover:bg-[#F4F4F5]/70 text-[#1A1A1A] text-xs md:text-[18px] focus:outline-none flex items-center justify-center gap-2`}
-                      >
-                        save
-                      </button>
-                      <button
-                        className={`w-full max-w-4xl mx-auto p-4 rounded-[8px] cursor-pointer bg-[#F97316] hover:bg-[#F97316]/80 text-white text-xs md:text-[18px] focus:outline-none flex items-center justify-center gap-2`}
-                      >
-                        Download
-                      </button>
-                    </div>
+                  <div className="flex justify-between text-sm md:text-xl font-medium ml-2">
+                    <p className="text-[#98A2B3]">Read Time:</p>
+                    <p className="text-[#1A1A1A]">1min 30sec</p>
                   </div>
                 </div>
               </div>
+
+              <div className="w-full rounded-lg space-y-2 lg:space-y-5">
+                <div className="border py-7 px-5 border-[#CBD5E1] rounded-[8px]">
+                  <div className="flex items-center gap-2 bg-white border p-1 rounded-[8px] justify-between w-fit mb-7">
+                    <button
+                      onClick={() => setOption("summary")}
+                      className={`px-3 py-1.5 rounded-[4px] ${
+                        option === "summary"
+                          ? "bg-[#F97316] hover:bg-[#F97316]/70 text-white"
+                          : "bg-transparent"
+                      }`}
+                    >
+                      Summary
+                    </button>
+                    <button
+                      onClick={() => setOption("transcript")}
+                      className={`px-3 py-1.5 rounded-[4px] ${
+                        option === "transcript"
+                          ? "bg-[#F97316] hover:bg-[#F97316]/70 text-white"
+                          : "bg-transparent"
+                      }`}
+                    >
+                      Transcript
+                    </button>
+                  </div>
+
+                  {option === "summary" ? (
+                    <div className="h-[420px] overflow-y-auto">
+                      <p className="mb-5 text-left text-sm text-[#555]">
+                        {breakTextIntoParagraphs(summaryText, 100)}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="h-[420px] overflow-y-auto">
+                      <div
+                        className="prose max-w-none"
+                        dangerouslySetInnerHTML={{
+                          __html: formatTranscript(
+                            transcriptText,
+                            duration
+                          ).join(""),
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  <div className="w-full flex items-center justify-end">
+                    {copied ? (
+                      <span className="text-green-600">
+                        Copied to clipboard
+                      </span>
+                    ) : (
+                      <Copy
+                        size={22}
+                        className="cursor-pointer"
+                        onClick={() =>
+                          copyText({ summaryText, transcriptText })
+                        }
+                      />
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex justify-between">
+                  <button className="w-full max-w-4xl mx-auto p-4 mr-5 rounded-[8px] cursor-pointer bg-[#F4F4F5] hover:bg-[#F4F4F5]/70 text-[#1A1A1A] text-xs md:text-[18px] focus:outline-none flex items-center justify-center gap-2">
+                    Save
+                  </button>
+                  <button className="w-full max-w-4xl mx-auto p-4 rounded-[8px] cursor-pointer bg-[#F97316] hover:bg-[#F97316]/80 text-white text-xs md:text-[18px] focus:outline-none flex items-center justify-center gap-2">
+                    Download
+                  </button>
+                </div>
+              </div>
             </div>
-          )}
+          </div>
         </div>
       )}
     </div>
   );
 }
-
 export default Summarizer;
 
 const VolumeBar: React.FC<VolumeBarProps> = ({ volume, onVolumeChange }) => {
