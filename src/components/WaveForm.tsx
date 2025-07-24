@@ -8,6 +8,9 @@ interface WaveformProps {
     width: number;
     height: number;
 }
+interface CustomWindow extends Window {
+  webkitAudioContext?: typeof AudioContext;
+}
 
 const Waveform: React.FC<WaveformProps> = ({
     audioUrl, onTimeUpdate,
@@ -28,7 +31,7 @@ const Waveform: React.FC<WaveformProps> = ({
             const response = await fetch(url);
             if (!response.ok) throw new Error('Failed to fetch audio');
             const arrayBuffer = await response.arrayBuffer();
-            const audioContext = new (window.AudioContext || (window as any).webkitAudioContext!)();
+            const audioContext = new (window.AudioContext || (window as CustomWindow).webkitAudioContext!)();
             const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
 
             const channelData = audioBuffer.getChannelData(0);

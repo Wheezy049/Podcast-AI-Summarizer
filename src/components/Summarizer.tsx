@@ -4,8 +4,6 @@ import React, { useRef, useState, useEffect } from "react";
 import { toast } from "react-toastify";
 import ProgressBar from "./ProgressBar";
 import Image from "next/image";
-import Waveform from "./WaveForm";
-import { error } from "console";
 
 interface Copy {
   summaryText: string;
@@ -42,7 +40,6 @@ function Summarizer() {
   const [summaryText, setSummaryText] = useState<string>("");
   const [transcriptText, setTranscriptText] = useState<string>("");
   const [isButtonDisabled, setIsButtonDisabled] = useState(false);
-  const [isLinkValid, setIsLinkValid] = useState<boolean>(false);
   const [linkUrlError, setLinkUrlError] = useState<string>("");
 
   const audioRef = useRef<HTMLAudioElement>(null);
