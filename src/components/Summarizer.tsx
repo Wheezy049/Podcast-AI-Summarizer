@@ -4,6 +4,7 @@ import React, { useRef, useState, useEffect } from "react";
 import { toast } from "react-toastify";
 import ProgressBar from "./ProgressBar";
 import Image from "next/image";
+import jsPDF from "jspdf";
 
 interface Copy {
   summaryText: string;
@@ -41,6 +42,7 @@ function Summarizer() {
   const [transcriptText, setTranscriptText] = useState<string>("");
   const [isButtonDisabled, setIsButtonDisabled] = useState(false);
   const [linkUrlError, setLinkUrlError] = useState<string>("");
+  const [isDownloading, setIsDownloading] = useState<boolean>(false);
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -515,6 +517,42 @@ Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deseru
     }
   };
 
+  const downloadSummarizeText = () => {
+  setIsDownloading(true);
+
+  try {
+    setTimeout(() => {
+      const doc = new jsPDF();
+
+      if (!text) {
+        throw new Error("No text to download.");
+      }
+
+      const lines = doc.splitTextToSize(text, 180);
+      doc.text(lines, 10, 10);
+
+      let baseName = "summary";
+
+      if (file?.name) {
+        baseName = file.name.replace(/\.[^/.]+$/, ""); // remove extension
+      } else if (inputUrl) {
+        const urlParts = inputUrl.split("/");
+        const lastPart = urlParts[urlParts.length - 1];
+        baseName = lastPart.replace(/\.[^/.]+$/, ""); // remove extension
+      }
+
+      const fileName = `${baseName}.pdf`;
+      doc.save(fileName);
+
+      setIsDownloading(false);
+    }, 3000);
+  } catch (error) {
+    console.error("Failed to download summary:", error);
+    setIsDownloading(false);
+  }
+};
+
+
   return (
     <div className="w-full flex flex-col justify-center items-center mx-auto">
       <div className="w-full mx-auto items-center flex flex-col justify-center lg:max-w-6xl mb-6">
@@ -748,7 +786,7 @@ Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deseru
       {/* input url & button */}
       {!isUploading && !isComplete && (
         <>
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 w-[90%] sm:w-[80%] md:w-[80%] lg:w-[85%] xl:w-[72%] max-w-5xl mx-auto px-4 py-2 border border-[#CBD5E1] rounded-[8px]">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 w-[80%] sm:w-[80%] md:w-[80%] lg:w-[85%] xl:w-[85%] max-w-5xl mx-auto px-4 py-2 border border-[#CBD5E1] rounded-[8px]">
             {/* Input URL */}
             <div className="flex items-center gap-2 w-full sm:w-[70%]">
               <svg
@@ -933,7 +971,7 @@ Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deseru
                   <div className="w-full flex items-center justify-end">
                     {copied ? (
                       <span className="text-green-600">
-                        Copied to clipboard
+                        Copied
                       </span>
                     ) : (
                       <Copy
@@ -951,8 +989,25 @@ Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deseru
                   <button className="w-full max-w-4xl mx-auto p-4 mr-5 rounded-[8px] cursor-pointer bg-[#F4F4F5] hover:bg-[#F4F4F5]/70 text-[#1A1A1A] text-xs md:text-[18px] focus:outline-none flex items-center justify-center gap-2">
                     Save
                   </button>
-                  <button className="w-full max-w-4xl mx-auto p-4 rounded-[8px] cursor-pointer bg-[#F97316] hover:bg-[#F97316]/80 text-white text-xs md:text-[18px] focus:outline-none flex items-center justify-center gap-2">
-                    Download
+                  <button
+                    onClick={downloadSummarizeText}
+                    disabled={isDownloading}
+                    className="w-full max-w-4xl mx-auto p-4 rounded-[8px] cursor-pointer bg-[#F97316] hover:bg-[#F97316]/80 text-white text-xs md:text-[18px] focus:outline-none flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isDownloading ? (
+                      <div className="flex justify-center items-center gap-1">
+                        <Image
+                          src="/starry.svg"
+                          alt="Music icon"
+                          className="animate-spin ml-2 w-4 h-4 md:w-6 md:h-6"
+                          width={4}
+                          height={4}
+                        />
+                        <span>Downloading</span>
+                      </div>
+                    ) : (
+                      "Download"
+                    )}
                   </button>
                 </div>
               </div>
